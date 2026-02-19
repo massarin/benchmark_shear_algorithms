@@ -6,7 +6,7 @@
 
 ## 1. The Problem
 
-Two-point statistics — galaxy–galaxy correlations ($\xi(r)$), shear–shear ($\xi_\pm(\theta)$), and galaxy–galaxy lensing (tangential shear $\gamma_t(r)$) — all reduce to the same kernel: for every pair $(i,j)$, compute a separation $r_{ij}$ and accumulate a weighted contribution into radial bins. Naively this is $O(N^2)$.
+Two-point statistics — galaxy–galaxy correlations $\xi(r)$, shear–shear $\xi_\pm(\theta)$, and galaxy–galaxy lensing $\gamma_t(r)$ — all reduce to the same kernel: for every pair $(i,j)$, compute a separation $r_{ij}$ and accumulate a weighted contribution into radial bins. Naively this is $O(N^2)$.
 
 Stage-IV surveys push this to the limit. Euclid targets ~30 gal/arcmin² [[1]](#ref1) over 15,000 deg², giving $N_\text{gal} \sim 30 \times 15{,}000 \times 3{,}600 \approx 1.6 \times 10^9$ source galaxies — making brute-force pair counting completely intractable.
 
@@ -30,13 +30,13 @@ Cell assignment is a pure integer division, and the 9 neighbors are a fixed-size
 
 ### 2.3 KD-Tree / Ball-Tree — $O(N \log N)$
 
-Recursively partition space into a binary tree; prune subtrees when the minimum possible distance exceeds the current best. [TreeCorr](https://github.com/rmjarvis/TreeCorr) [[2]](#ref2) implements ball trees in C++ with OpenMP, achieving sub-second runtimes for $N \sim 10^6$ on 32 cores (measured here: 1.4 s at $N_S = 10^6$, empirical $\alpha \approx 1.06$).
+Recursively partition space into a binary tree; prune subtrees when the minimum possible distance exceeds the current best. [TreeCorr](https://github.com/rmjarvis/TreeCorr) [[2]](#ref2) implements ball trees in C++ with OpenMP, achieving sub-second runtimes for $N \sim 10^6$ on 32 cores measured here: 1.4 s at $N_S = 10^6$, empirical $\alpha \approx 1.06$.
 
 **GPU-friendly:** ❌ Tree traversal is data-dependent: each query follows a different path, causing warp divergence and irregular memory access patterns on GPU. Stackless GPU kd-tree algorithms exist but recover only a fraction of CPU tree efficiency. **Scales to surveys:** ✅ on CPU.
 
 ### 2.4 FFT-Based Estimators — $O(N_g \log N_g)$
 
-The two-point correlation function is the autocorrelation of the density field, computable via the convolution theorem: paint galaxies onto a grid → FFT → multiply by conjugate → IFFT. For **shear–shear and g-g statistics**, the catalog is routinely pixellised — galaxies are painted onto a HEALPix or regular grid and the transform applied to the resulting map. This is standard practice for cosmic shear power spectra (pseudo-$C_\ell$ estimators).
+The two-point correlation function is the autocorrelation of the density field, computable via the convolution theorem: paint galaxies onto a grid → FFT → multiply by conjugate → IFFT. For **shear–shear and g-g statistics**, the catalog is routinely pixellised — galaxies are painted onto a HEALPix or regular grid and the transform applied to the resulting map. This is standard practice for cosmic shear power spectra pseudo-$C_\ell$ estimators.
 
 The flat-sky FFT is valid for patches $\lesssim 10°$. For wide-field or full-sky coverage, spherical harmonic transforms are required. [S2FFT](https://github.com/astro-informatics/s2fft) [[3]](#ref3) provides differentiable spin spherical harmonic transforms in JAX, deployable on GPUs and TPUs, with up to 400× acceleration over CPU C codes. Its algorithms are built on stable Wigner-d function recursions that recurse along harmonic order $m$ alone, enabling extreme parallelisation — making full-sky FFT-based estimators GPU-compatible in a differentiable framework for the first time.
 
@@ -46,7 +46,7 @@ The caveat for sparse catalogs: grid resolution must match $r_\text{min}$. For 3
 
 ### 2.5 KNN — $O(N^2)$ + partial sort
 
-For each query, find the $K$ nearest neighbours via brute-force distances + `argpartition`. Most useful in **dense LSS contexts** — N-body snapshots, simulation post-processing — where the distance to the $K$-th neighbour is itself an observable (local density estimator: $\hat{n} \propto K / V(r_K)$) or where environment tagging requires a well-defined local scale. For sparse weak lensing catalogs the statistic is ill-defined, as fixed $K$ mixes different physical scales.
+For each query, find the $K$ nearest neighbours via brute-force distances + `argpartition`. Most useful in **dense LSS contexts** — N-body snapshots, simulation post-processing — where the distance to the $K$-th neighbour is itself an observable local density estimator: $\hat{n} \propto K / V(r_K)$ or where environment tagging requires a well-defined local scale. For sparse weak lensing catalogs the statistic is ill-defined, as fixed $K$ mixes different physical scales.
 
 **GPU-friendly:** ✅ (distance step is identical to brute force). **Scales to surveys:** ⚠️ approximate methods (e.g. FAISS) needed beyond $N \sim 10^7$.
 
@@ -79,7 +79,7 @@ Benchmark on NVIDIA A40 (48 GB) vs 32 CPU cores, [Euclid Flagship Mock Galaxy Ca
 | 1,000,000          | 276,803           | 1.4             | OOM (10.9 GB req.)      |
 | 5,000,000          | 1,384,017         | 7.9             | OOM                     |
 
-TreeCorr scales as $\alpha \approx 1.06$ (close to $O(N \log N)$); JAX brute force OOMs above $N \sim 500\text{k}$ due to the $N_L \times N_S$ distance matrix. TreeCorr wins by up to 60× at $N = 500\text{k}$.
+TreeCorr scales as $\alpha \approx 1.06$ close to $O(N \log N)$; JAX brute force OOMs above $N \sim 500\text{k}$ due to the $N_L \times N_S$ distance matrix. TreeCorr wins by up to 60× at $N = 500\text{k}$.
 
 GPU brute force becomes competitive only for $N \lesssim 50\text{k}$ or $r_\text{max} \lesssim 5$ arcmin, where the candidate set per lens is small enough that GPU parallelism offsets the worse asymptotic scaling. A **cell-list implementation** would recover GPU competitiveness for larger $N$ by reducing the effective work per lens from $O(N_S)$ to $O(\bar{n} \cdot r_\text{max}^2)$.
 
@@ -96,7 +96,7 @@ GPU brute force becomes competitive only for $N \lesssim 50\text{k}$ or $r_\text
 | Spherical FFT (S2FFT) | $O(L^2 \log L)$ | ✅ | Full-sky, wide-field, differentiable pipelines |
 | KNN | $O(N^2)$ + sort | ✅ | Density estimation, dense LSS snapshots |
 
-For galaxy–galaxy lensing ($\gamma_t$) at survey scale, **tree methods on CPU remain the practical standard**. FFT-based approaches are the right tool for shear–shear and g-g power spectra, with S2FFT enabling this on GPU for the first time in a differentiable JAX framework. A JAX cell-list implementation would recover GPU competitiveness for $\gamma_t$ at small to moderate $r_\text{max}$.
+For galaxy–galaxy lensing $\gamma_t$ at survey scale, **tree methods on CPU remain the practical standard**. FFT-based approaches are the right tool for shear–shear and g-g power spectra, with S2FFT enabling this on GPU for the first time in a differentiable JAX framework. A JAX cell-list implementation would recover GPU competitiveness for $\gamma_t$ at small to moderate $r_\text{max}$.
 
 ---
 
