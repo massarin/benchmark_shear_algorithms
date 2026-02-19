@@ -49,3 +49,5 @@ Empirical scaling: TreeCorr **α ≈ 1.06** (O(N log N)). JAX **α ≈ 1.54** ov
 TreeCorr wins for this workload. The kd-tree's O(N log N) scaling and aggressive pair pruning outperform brute-force GPU at all tested scales. JAX's perfectly vectorized arithmetic is negated by the O(N²) memory footprint.
 
 JAX brute force is competitive only for small catalogs (N ≲ 50k) or small apertures (r_max ≲ 5 arcmin) where the candidate set per lens is small enough that GPU parallelism offsets the worse asymptotic scaling. A cell-list implementation would recover GPU competitiveness for larger N.
+
+[Background research](background_research.md)
